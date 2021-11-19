@@ -32,25 +32,23 @@ class Solution:
             Homography from source to destination, 3x3 numpy array.
         """
         # return homography
-        """INSERT YOUR CODE HERE"""
-        num_pts = len(match_p_src[0])
-        A = np.zeros((2 * num_pts, 9), dtype=np.int64)
-        for idx, x_s in enumerate(match_p_src[0]):
-            y_s = match_p_src[1][idx]
+        number_of_points = match_p_src.shape[1]
+        src_coordinate_mat = np.concatenate((match_p_src, np.ones((1, number_of_points), dtype=int)), axis=0)
+        A = np.vstack((
+            [Solution.create_matching_coordinate_pair_rows(index, coordinate_pair, match_p_dst)
+             for index, coordinate_pair in enumerate(src_coordinate_mat.T)]
+        ))
 
-            x_d = match_p_dst[0][idx]
-            y_d = match_p_dst[1][idx]
+        [_, _, V_t] = np.linalg.svd(A)
+        return V_t[-1].reshape(3, 3)
 
-            A[idx * 2] = [x_s, y_s, 1, 0, 0, 0, -x_d * x_s, -x_d * y_s, -x_d]
-            A[idx * 2 + 1] = [0, 0, 0, x_s, y_s, 1, -y_d * x_s, -y_d * y_s, -y_d]
-
-        U, S, Vh = np.linalg.svd(A)
-        h = Vh[-1,:] / Vh[-1,-1]
-        H = h.reshape(3, 3)
-
-        return H
-
-        
+    @staticmethod
+    def create_matching_coordinate_pair_rows(index: int,
+                                             src_coordinate_vector: np.ndarray,
+                                             dst_coordinate_mat: np.ndarray) -> np.ndarray:
+        return np.stack((
+            np.r_[src_coordinate_vector, [0] * 3, -1 * dst_coordinate_mat[0][index] * src_coordinate_vector],
+            np.r_[[0] * 3, src_coordinate_vector, -1 * dst_coordinate_mat[1][index] * src_coordinate_vector]))
 
     @staticmethod
     def compute_forward_homography_slow(
