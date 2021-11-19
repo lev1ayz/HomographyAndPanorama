@@ -115,9 +115,19 @@ class Solution:
         Returns:
             The forward homography of the source image to its destination.
         """
-        # return new_image
-        """INSERT YOUR CODE HERE"""
-        pass
+        dst_image = np.zeros(dst_image_shape, dtype=np.uint8)
+        h, w = src_image.shape[0], src_image.shape[1]
+        xx, yy = np.meshgrid(range(h), range(w))
+        xx, yy = xx.reshape(1, -1), yy.reshape(1, -1)
+        src_coordinate_matrix = np.array([yy, xx, np.ones((1, h * w))], dtype=np.int32).squeeze()
+        dst_coordinate_matrix = np.matmul(homography, src_coordinate_matrix)
+        dst_coordinate_matrix = dst_coordinate_matrix / dst_coordinate_matrix[2]
+        dst_coordinate_matrix = dst_coordinate_matrix[1::-1, :].round().astype(int)
+        dst_coordinate_matrix = dst_coordinate_matrix.clip(min=np.array([0, 0]).reshape(-1, 1),
+                                                           max=np.array(dst_image_shape[:2]).reshape(-1, 1) - 1)
+
+        dst_image[dst_coordinate_matrix[0, :], dst_coordinate_matrix[1, :]] = src_image[xx, yy]
+        return dst_image
 
     @staticmethod
     def test_homography(homography: np.ndarray,
