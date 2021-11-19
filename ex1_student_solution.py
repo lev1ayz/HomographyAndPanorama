@@ -154,9 +154,16 @@ class Solution:
             inliers). In edge case where the number of inliers is zero,
             return dist_mse = 10 ** 9.
         """
-        # return fit_percent, dist_mse
-        """INSERT YOUR CODE HERE"""
-        pass
+        number_of_points = match_p_src.shape[1]
+        src_coordinate_mat = np.concatenate(match_p_src, np.ones((1, number_of_points), dtype=int), axis=0)
+        transformed_coordinate_mat = np.matmul(homography, src_coordinate_mat)
+        transformed_coordinate_mat = transformed_coordinate_mat[0:2] / transformed_coordinate_mat[2]
+        distances = np.linalg.norm(match_p_dst - transformed_coordinate_mat, axis=0)
+        inlier_indices = distances < max_err
+
+        fit_percent = np.mean(inlier_indices)
+        dist_mse = np.mean(distances[inlier_indices]) if np.any(inlier_indices) else 10 ** 9
+        return fit_percent, dist_mse
 
     @staticmethod
     def meet_the_model_points(homography: np.ndarray,
