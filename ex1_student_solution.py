@@ -73,8 +73,19 @@ class Solution:
         Returns:
             The forward homography of the source image to its destination.
         """
-        # return new_image
-        """INSERT YOUR CODE HERE"""
+
+        dst_image = np.zeros(dst_image_shape, dtype=np.uint8)
+        for i in range(src_image.shape[0]):
+            for j in range(src_image.shape[1]):
+                # there is a flip in the coordinates, as (row, column) = (y, x)
+                dst_coordinates = np.matmul(homography, np.array([j, i, 1]))
+                # reverse flip back to (row, column)
+                dst_i = np.round(dst_coordinates[1] / dst_coordinates[2]).astype(int)
+                dst_j = np.round(dst_coordinates[0] / dst_coordinates[2]).astype(int)
+                if 0 <= dst_i < dst_image_shape[0] and 0 <= dst_j < dst_image_shape[1]:
+                    dst_image[dst_i][dst_j] = src_image[i][j]
+
+        return dst_image
         pass
 
     @staticmethod
