@@ -33,6 +33,7 @@ class Solution:
         """
         # return homography
         """INSERT YOUR CODE HERE"""
+        '''
         num_pts = len(match_p_src[0])
         A = np.zeros((2 * num_pts, 9), dtype=np.int64)
         for idx, x_s in enumerate(match_p_src[0]):
@@ -49,7 +50,23 @@ class Solution:
         H = h.reshape(3, 3)
 
         return H
+        '''
+        number_of_points = match_p_src.shape[1]
+        src_coordinate_mat = np.concatenate((match_p_src, np.ones((1, number_of_points), dtype=int)), axis=0)
+        A = np.vstack((
+            [Solution.create_matching_coordinate_pair_rows(index, coordinate_pair, match_p_dst)
+             for index, coordinate_pair in enumerate(src_coordinate_mat.T)]
+        ))
+        [_, _, V_t] = np.linalg.svd(A)
+        return V_t[-1].reshape(3, 3)
 
+    @staticmethod
+    def create_matching_coordinate_pair_rows(index: int,
+                                             src_coordinate_vector: np.ndarray,
+                                             dst_coordinate_mat: np.ndarray) -> np.ndarray:
+        return np.stack((
+            np.r_[src_coordinate_vector, [0] * 3, -1 * dst_coordinate_mat[0][index] * src_coordinate_vector],
+            np.r_[[0] * 3, src_coordinate_vector, -1 * dst_coordinate_mat[1][index] * src_coordinate_vector]))
         
 
     @staticmethod
@@ -75,9 +92,17 @@ class Solution:
         Returns:
             The forward homography of the source image to its destination.
         """
-        # return new_image
-        """INSERT YOUR CODE HERE"""
-        pass
+        h, w, _ = src_image.shape
+        frwrd_homogrpahy = np.zeros(dst_image_shape, dtype=np.uint8)
+        for x_s in range(w):
+            for y_s in range(h):
+                X_d = np.matmul(homography, np.array([x_s, y_s, 1]))
+                x_d = np.round(X_d[0] / X_d[2]).astype(int)
+                y_d = np.round(X_d[1] / X_d[2]).astype(int)
+                if 0 <= x_d < dst_image_shape[1] and 0 <= y_d < dst_image_shape[0]:
+                    frwrd_homogrpahy[y_d][x_d] = src_image[y_s][x_s]
+
+        return frwrd_homogrpahy
 
     @staticmethod
     def compute_forward_homography_fast(
