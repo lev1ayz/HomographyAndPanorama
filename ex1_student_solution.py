@@ -86,7 +86,6 @@ class Solution:
                     dst_image[dst_i][dst_j] = src_image[i][j]
 
         return dst_image
-        pass
 
     @staticmethod
     def compute_forward_homography_fast(
@@ -116,7 +115,7 @@ class Solution:
             The forward homography of the source image to its destination.
         """
         dst_image = np.zeros(dst_image_shape, dtype=np.uint8)
-        h, w = src_image.shape[0], src_image.shape[1]
+        h, w = src_image.shape[:2]
         xx, yy = np.meshgrid(range(h), range(w))
         xx, yy = xx.reshape(1, -1), yy.reshape(1, -1)
         src_coordinate_matrix = np.array([yy, xx, np.ones((1, h * w))], dtype=np.int32).squeeze()
