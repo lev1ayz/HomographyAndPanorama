@@ -32,25 +32,23 @@ class Solution:
             Homography from source to destination, 3x3 numpy array.
         """
         # return homography
-        """INSERT YOUR CODE HERE"""
-        num_pts = len(match_p_src[0])
-        A = np.zeros((2 * num_pts, 9), dtype=np.int64)
-        for idx, x_s in enumerate(match_p_src[0]):
-            y_s = match_p_src[1][idx]
+        number_of_points = match_p_src.shape[1]
+        src_coordinate_mat = np.concatenate((match_p_src, np.ones((1, number_of_points), dtype=int)), axis=0)
+        A = np.vstack((
+            [Solution.create_matching_coordinate_pair_rows(index, coordinate_pair, match_p_dst)
+             for index, coordinate_pair in enumerate(src_coordinate_mat.T)]
+        ))
 
-            x_d = match_p_dst[0][idx]
-            y_d = match_p_dst[1][idx]
+        [_, _, V_t] = np.linalg.svd(A)
+        return V_t[-1].reshape(3, 3)
 
-            A[idx * 2] = [x_s, y_s, 1, 0, 0, 0, -x_d * x_s, -x_d * y_s, -x_d]
-            A[idx * 2 + 1] = [0, 0, 0, x_s, y_s, 1, -y_d * x_s, -y_d * y_s, -y_d]
-
-        U, S, Vh = np.linalg.svd(A)
-        h = Vh[-1,:] / Vh[-1,-1]
-        H = h.reshape(3, 3)
-
-        return H
-
-        
+    @staticmethod
+    def create_matching_coordinate_pair_rows(index: int,
+                                             src_coordinate_vector: np.ndarray,
+                                             dst_coordinate_mat: np.ndarray) -> np.ndarray:
+        return np.stack((
+            np.r_[src_coordinate_vector, [0] * 3, -1 * dst_coordinate_mat[0][index] * src_coordinate_vector],
+            np.r_[[0] * 3, src_coordinate_vector, -1 * dst_coordinate_mat[1][index] * src_coordinate_vector]))
 
     @staticmethod
     def compute_forward_homography_slow(
@@ -75,9 +73,19 @@ class Solution:
         Returns:
             The forward homography of the source image to its destination.
         """
-        # return new_image
-        """INSERT YOUR CODE HERE"""
-        pass
+
+        dst_image = np.zeros(dst_image_shape, dtype=np.uint8)
+        for i in range(src_image.shape[0]):
+            for j in range(src_image.shape[1]):
+                # there is a flip in the coordinates, as (row, column) = (y, x)
+                dst_coordinates = np.matmul(homography, np.array([j, i, 1]))
+                # reverse flip back to (row, column)
+                dst_i = np.round(dst_coordinates[1] / dst_coordinates[2]).astype(int)
+                dst_j = np.round(dst_coordinates[0] / dst_coordinates[2]).astype(int)
+                if 0 <= dst_i < dst_image_shape[0] and 0 <= dst_j < dst_image_shape[1]:
+                    dst_image[dst_i][dst_j] = src_image[i][j]
+
+        return dst_image
 
     @staticmethod
     def compute_forward_homography_fast(
@@ -106,9 +114,19 @@ class Solution:
         Returns:
             The forward homography of the source image to its destination.
         """
-        # return new_image
-        """INSERT YOUR CODE HERE"""
-        pass
+        dst_image = np.zeros(dst_image_shape, dtype=np.uint8)
+        h, w = src_image.shape[:2]
+        xx, yy = np.meshgrid(range(h), range(w))
+        xx, yy = xx.reshape(1, -1), yy.reshape(1, -1)
+        src_coordinate_matrix = np.array([yy, xx, np.ones((1, h * w))], dtype=np.int32).squeeze()
+        dst_coordinate_matrix = np.matmul(homography, src_coordinate_matrix)
+        dst_coordinate_matrix = dst_coordinate_matrix / dst_coordinate_matrix[2]
+        dst_coordinate_matrix = dst_coordinate_matrix[1::-1, :].round().astype(int)
+        dst_coordinate_matrix = dst_coordinate_matrix.clip(min=np.array([0, 0]).reshape(-1, 1),
+                                                           max=np.array(dst_image_shape[:2]).reshape(-1, 1) - 1)
+
+        dst_image[dst_coordinate_matrix[0, :], dst_coordinate_matrix[1, :]] = src_image[xx, yy]
+        return dst_image
 
     @staticmethod
     def test_homography(homography: np.ndarray,
@@ -135,9 +153,21 @@ class Solution:
             inliers). In edge case where the number of inliers is zero,
             return dist_mse = 10 ** 9.
         """
-        # return fit_percent, dist_mse
-        """INSERT YOUR CODE HERE"""
-        pass
+        distances = Solution.get_matching_point_distances(homography, match_p_dst, match_p_src)
+        inlier_indices = distances < max_err
+
+        fit_percent = np.mean(inlier_indices)
+        dist_mse = np.mean(distances[inlier_indices]) if np.any(inlier_indices) else 10 ** 9
+        return fit_percent, dist_mse
+
+    @staticmethod
+    def get_matching_point_distances(homography, match_p_dst, match_p_src):
+        number_of_points = match_p_src.shape[1]
+        src_coordinate_mat = np.concatenate((match_p_src, np.ones((1, number_of_points), dtype=int)), axis=0)
+        transformed_coordinate_mat = np.matmul(homography, src_coordinate_mat)
+        transformed_coordinate_mat = transformed_coordinate_mat[0:2] / transformed_coordinate_mat[2]
+        distances = np.linalg.norm(match_p_dst - transformed_coordinate_mat, axis=0)
+        return distances
 
     @staticmethod
     def meet_the_model_points(homography: np.ndarray,
@@ -164,9 +194,10 @@ class Solution:
             The second entry is the matching points form the destination
             image (shape 2xD; D as above).
         """
-        # return mp_src_meets_model, mp_dst_meets_model
-        """INSERT YOUR CODE HERE"""
-        pass
+        distances = Solution.get_matching_point_distances(homography, match_p_dst, match_p_src)
+        inlier_indices = distances < max_err
+
+        return match_p_src[:, inlier_indices], match_p_dst[:, inlier_indices]
 
     def compute_homography(self,
                            match_p_src: np.ndarray,
