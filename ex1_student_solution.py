@@ -154,16 +154,21 @@ class Solution:
             inliers). In edge case where the number of inliers is zero,
             return dist_mse = 10 ** 9.
         """
-        number_of_points = match_p_src.shape[1]
-        src_coordinate_mat = np.concatenate(match_p_src, np.ones((1, number_of_points), dtype=int), axis=0)
-        transformed_coordinate_mat = np.matmul(homography, src_coordinate_mat)
-        transformed_coordinate_mat = transformed_coordinate_mat[0:2] / transformed_coordinate_mat[2]
-        distances = np.linalg.norm(match_p_dst - transformed_coordinate_mat, axis=0)
+        distances = Solution.get_matching_point_distances(homography, match_p_dst, match_p_src)
         inlier_indices = distances < max_err
 
         fit_percent = np.mean(inlier_indices)
         dist_mse = np.mean(distances[inlier_indices]) if np.any(inlier_indices) else 10 ** 9
         return fit_percent, dist_mse
+
+    @staticmethod
+    def get_matching_point_distances(homography, match_p_dst, match_p_src):
+        number_of_points = match_p_src.shape[1]
+        src_coordinate_mat = np.concatenate((match_p_src, np.ones((1, number_of_points), dtype=int)), axis=0)
+        transformed_coordinate_mat = np.matmul(homography, src_coordinate_mat)
+        transformed_coordinate_mat = transformed_coordinate_mat[0:2] / transformed_coordinate_mat[2]
+        distances = np.linalg.norm(match_p_dst - transformed_coordinate_mat, axis=0)
+        return distances
 
     @staticmethod
     def meet_the_model_points(homography: np.ndarray,
@@ -190,9 +195,10 @@ class Solution:
             The second entry is the matching points form the destination
             image (shape 2xD; D as above).
         """
-        # return mp_src_meets_model, mp_dst_meets_model
-        """INSERT YOUR CODE HERE"""
-        pass
+        distances = Solution.get_matching_point_distances(homography, match_p_dst, match_p_src)
+        inlier_indices = distances < max_err
+
+        return match_p_src[:, inlier_indices], match_p_dst[:, inlier_indices]
 
     def compute_homography(self,
                            match_p_src: np.ndarray,
