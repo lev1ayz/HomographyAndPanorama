@@ -199,8 +199,8 @@ class Solution:
 
         return match_p_src[:, inlier_indices], match_p_dst[:, inlier_indices]
 
-    def compute_homography(self,
-                           match_p_src: np.ndarray,
+    @staticmethod
+    def compute_homography(match_p_src: np.ndarray,
                            match_p_dst: np.ndarray,
                            inliers_percent: float,
                            max_err: float) -> np.ndarray:
@@ -229,9 +229,30 @@ class Solution:
         # n = 4
         # # number of RANSAC iterations (+1 to avoid the case where w=1)
         # k = int(np.ceil(np.log(1 - p) / np.log(1 - w ** n))) + 1
-        # return homography
-        """INSERT YOUR CODE HERE"""
-        pass
+        w = inliers_percent
+        t = max_err
+        p = 0.99
+        d = 0.5
+        n = 4
+        k = int(np.ceil(np.log(1 - p) / np.log(1 - w ** n))) + 1
+
+        best_model, best_mse = np.empty(np.array([3, 3])), np.finfo(float).max
+        for i in range(k):
+            candidate_indices = np.random.permutation(range(match_p_src.shape[1]))[:n]
+            src_candidates, dst_candidates = match_p_src[:, candidate_indices], match_p_dst[:, candidate_indices]
+            candidate_homography = Solution.compute_homography_naive(src_candidates, dst_candidates)
+            fit_percent, dist_mse = Solution.test_homography(candidate_homography, match_p_src, match_p_dst, t)
+
+            if fit_percent > d:
+                src_inliers, dst_inliers = Solution.meet_the_model_points(candidate_homography, match_p_src,
+                                                                          match_p_dst, t)
+
+                candidate_homography = Solution.compute_homography_naive(src_inliers, dst_inliers)
+                fit_percent, dist_mse = Solution.test_homography(candidate_homography, match_p_src, match_p_dst, t)
+                if dist_mse < best_mse:
+                    best_mse, best_model = dist_mse, candidate_homography
+
+        return best_model
 
     @staticmethod
     def compute_backward_mapping(
