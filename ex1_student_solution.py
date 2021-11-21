@@ -131,9 +131,27 @@ class Solution:
         Returns:
             The forward homography of the source image to its destination.
         """
-        # return new_image
-        """INSERT YOUR CODE HERE"""
-        pass
+        H, W, _  = src_image.shape
+        xx, yy = np.meshgrid(range(W), range(H))
+        X_S = np.stack([xx.reshape(1,-1).squeeze(), yy.reshape(1,-1).squeeze(), [1] * (H * W)])
+
+        X_D  = np.matmul(homography, X_S)
+        
+        # normalization
+        X_D = X_D / X_D[2]
+        
+        # rounding and clipping
+        X_D = X_D.round().astype(int)
+        H_D, W_D, _ = dst_image_shape
+        X_D[0] = np.clip(X_D[0], a_min=0, a_max=W_D-1)
+        X_D[1] = np.clip(X_D[1], a_min=0, a_max=H_D-1)
+        
+        # pixel planting
+        dst_image = np.zeros(dst_image_shape, dtype=np.uint8)
+        dst_image[X_D[1], X_D[0]] = src_image[X_S[1], X_S[0]]
+
+        return dst_image
+
 
     @staticmethod
     def test_homography(homography: np.ndarray,
