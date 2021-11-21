@@ -178,9 +178,23 @@ class Solution:
             inliers). In edge case where the number of inliers is zero,
             return dist_mse = 10 ** 9.
         """
-        # return fit_percent, dist_mse
-        """INSERT YOUR CODE HERE"""
-        pass
+        num_pts = match_p_src.shape[1]
+        X_S = np.stack([match_p_src[0], match_p_src[1], [1] * num_pts])
+
+        X_D = np.matmul(homography, X_S)
+        X_D = X_D / X_D[2]
+
+        dists = np.linalg.norm(match_p_dst - X_D[0:1], axis=0)
+
+        inliners_indxes = dists < max_err
+        fit_percent = np.mean(inliners_indxes)
+        
+        if fit_percent == 0:
+            dist_mse = 10 ** 9
+        else:
+            dist_mse = dists[inliners_indxes]
+
+        return fit_percent, dist_mse
 
     @staticmethod
     def meet_the_model_points(homography: np.ndarray,
