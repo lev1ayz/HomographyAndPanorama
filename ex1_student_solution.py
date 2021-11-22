@@ -279,10 +279,23 @@ class Solution:
         Returns:
             The source image backward warped to the destination coordinates.
         """
+        backward_warp = np.zeros(dst_image_shape, dtype=np.uint8)
 
-        # return backward_warp
-        """INSERT YOUR CODE HERE"""
-        pass
+        dst_h, dst_w = dst_image_shape[:2]
+        src_h, src_w = src_image.shape[:2]
+        dst_yy, dst_xx = np.meshgrid(range(dst_h), range(dst_w))
+        dst_coordinate_matrix = np.array([dst_xx.ravel(), dst_yy.ravel(), np.ones((dst_h * dst_w))], dtype=np.int32)
+        transformed_coordinate_matrix = np.matmul(backward_projective_homography, dst_coordinate_matrix)
+        transformed_coordinate_matrix = transformed_coordinate_matrix[:2] / transformed_coordinate_matrix[2]
+        src_yy, src_xx = np.meshgrid(range(src_h), range(src_w))
+        src_coordinates = np.array([src_xx.ravel(), src_yy.ravel()], dtype=np.int32)
+        for i in range(3):
+            src_channel = src_image[:, :, i].T.ravel()
+            grid = griddata(src_coordinates.T, src_channel, transformed_coordinate_matrix.T,
+                            method='cubic', fill_value=0)
+
+            backward_warp[:, :, i] = grid.reshape((dst_h, dst_w), order='F')
+        return backward_warp
 
     @staticmethod
     def find_panorama_shape(src_image: np.ndarray,
