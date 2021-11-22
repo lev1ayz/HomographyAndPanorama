@@ -199,8 +199,8 @@ class Solution:
 
         return match_p_src[:, inlier_indices], match_p_dst[:, inlier_indices]
 
-    @staticmethod
-    def compute_homography(match_p_src: np.ndarray,
+    def compute_homography(self,
+                           match_p_src: np.ndarray,
                            match_p_dst: np.ndarray,
                            inliers_percent: float,
                            max_err: float) -> np.ndarray:
