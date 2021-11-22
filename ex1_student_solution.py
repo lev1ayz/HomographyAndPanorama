@@ -159,7 +159,9 @@ class Solution:
         return fit_percent, dist_mse
 
     @staticmethod
-    def get_matching_point_distances(homography, match_p_dst, match_p_src):
+    def get_matching_point_distances(homography: np.ndarray,
+                                     match_p_dst: np.ndarray,
+                                     match_p_src: np.ndarray) -> np.ndarray:
         number_of_points = match_p_src.shape[1]
         src_coordinate_mat = np.concatenate((match_p_src, np.ones((1, number_of_points), dtype=int)), axis=0)
         transformed_coordinate_mat = homography @ src_coordinate_mat
