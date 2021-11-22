@@ -33,7 +33,7 @@ class Solution:
         """
         # return homography
         number_of_points = match_p_src.shape[1]
-        src_coordinate_mat = np.concatenate((match_p_src, np.ones((1, number_of_points), dtype=int)), axis=0)
+        src_coordinate_mat = np.concatenate((match_p_src, np.ones((1, number_of_points))), axis=0)
         A = np.vstack((
             [Solution.create_matching_coordinate_pair_rows(index, coordinate_pair, match_p_dst)
              for index, coordinate_pair in enumerate(src_coordinate_mat.T)]
@@ -73,17 +73,15 @@ class Solution:
         Returns:
             The forward homography of the source image to its destination.
         """
-
+        h, w = src_image.shape[:2]
         dst_image = np.zeros(dst_image_shape, dtype=np.uint8)
-        for i in range(src_image.shape[0]):
-            for j in range(src_image.shape[1]):
+        for src_y in range(h):
+            for src_x in range(w):
+                dst_coordinates = homography @ np.array([src_x, src_y, 1])
+                dst_x, dst_y = np.round(dst_coordinates[:2] / dst_coordinates[2]).astype(int)
                 # there is a flip in the coordinates, as (row, column) = (y, x)
-                dst_coordinates = np.matmul(homography, np.array([j, i, 1]))
-                # reverse flip back to (row, column)
-                dst_i = np.round(dst_coordinates[1] / dst_coordinates[2]).astype(int)
-                dst_j = np.round(dst_coordinates[0] / dst_coordinates[2]).astype(int)
-                if 0 <= dst_i < dst_image_shape[0] and 0 <= dst_j < dst_image_shape[1]:
-                    dst_image[dst_i][dst_j] = src_image[i][j]
+                if 0 <= dst_y < dst_image_shape[0] and 0 <= dst_x < dst_image_shape[1]:
+                    dst_image[dst_y][dst_x] = src_image[src_y][src_x]
 
         return dst_image
 
@@ -115,17 +113,17 @@ class Solution:
             The forward homography of the source image to its destination.
         """
         dst_image = np.zeros(dst_image_shape, dtype=np.uint8)
-        h, w = src_image.shape[:2]
-        xx, yy = np.meshgrid(range(h), range(w))
-        xx, yy = xx.reshape(1, -1), yy.reshape(1, -1)
-        src_coordinate_matrix = np.array([yy, xx, np.ones((1, h * w))], dtype=np.int32).squeeze()
-        dst_coordinate_matrix = np.matmul(homography, src_coordinate_matrix)
-        dst_coordinate_matrix = dst_coordinate_matrix / dst_coordinate_matrix[2]
-        dst_coordinate_matrix = dst_coordinate_matrix[1::-1, :].round().astype(int)
+        src_h, src_w = src_image.shape[:2]
+        dst_h, dst_w = dst_image_shape[:2]
+        src_yy, src_xx = np.meshgrid(range(src_h), range(src_w))
+        src_yy, src_xx = src_yy.ravel(), src_xx.ravel()
+        src_coordinate_matrix = np.array([src_xx, src_yy, np.ones((src_h * src_w))], dtype=np.int32)
+        dst_coordinate_matrix = homography @ src_coordinate_matrix
+        dst_coordinate_matrix = np.round(dst_coordinate_matrix[:2] / dst_coordinate_matrix[2]).astype(int)
         dst_coordinate_matrix = dst_coordinate_matrix.clip(min=np.array([0, 0]).reshape(-1, 1),
-                                                           max=np.array(dst_image_shape[:2]).reshape(-1, 1) - 1)
+                                                           max=np.array((dst_w, dst_h)).reshape(-1, 1) - 1)
 
-        dst_image[dst_coordinate_matrix[0, :], dst_coordinate_matrix[1, :]] = src_image[xx, yy]
+        dst_image[dst_coordinate_matrix[1], dst_coordinate_matrix[0]] = src_image[src_yy, src_xx]
         return dst_image
 
     @staticmethod
@@ -164,8 +162,8 @@ class Solution:
     def get_matching_point_distances(homography, match_p_dst, match_p_src):
         number_of_points = match_p_src.shape[1]
         src_coordinate_mat = np.concatenate((match_p_src, np.ones((1, number_of_points), dtype=int)), axis=0)
-        transformed_coordinate_mat = np.matmul(homography, src_coordinate_mat)
-        transformed_coordinate_mat = transformed_coordinate_mat[0:2] / transformed_coordinate_mat[2]
+        transformed_coordinate_mat = homography @ src_coordinate_mat
+        transformed_coordinate_mat = transformed_coordinate_mat[:2] / transformed_coordinate_mat[2]
         distances = np.linalg.norm(match_p_dst - transformed_coordinate_mat, axis=0)
         return distances
 
@@ -285,7 +283,7 @@ class Solution:
         src_h, src_w = src_image.shape[:2]
         dst_yy, dst_xx = np.meshgrid(range(dst_h), range(dst_w))
         dst_coordinate_matrix = np.array([dst_xx.ravel(), dst_yy.ravel(), np.ones((dst_h * dst_w))], dtype=np.int32)
-        transformed_coordinate_matrix = np.matmul(backward_projective_homography, dst_coordinate_matrix)
+        transformed_coordinate_matrix = backward_projective_homography @ dst_coordinate_matrix
         transformed_coordinate_matrix = transformed_coordinate_matrix[:2] / transformed_coordinate_matrix[2]
         src_yy, src_xx = np.meshgrid(range(src_h), range(src_w))
         src_coordinates = np.array([src_xx.ravel(), src_yy.ravel()], dtype=np.int32)
