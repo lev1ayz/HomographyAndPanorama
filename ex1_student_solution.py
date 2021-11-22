@@ -428,6 +428,15 @@ class Solution:
             A panorama image.
 
         """
-        # return np.clip(img_panorama, 0, 255).astype(np.uint8)
-        """INSERT YOUR CODE HERE"""
-        pass
+        forward_homography = self.compute_homography(match_p_src, match_p_dst, inliers_percent, max_err)
+        pano_rows, pano_cols, pad_struct = Solution.find_panorama_shape(src_image, dst_image, forward_homography)
+        dst_up, dst_down = pad_struct.pad_up, pad_struct.pad_up + dst_image.shape[0]
+        dst_left, dst_right = pad_struct.pad_left, pad_struct.pad_left + dst_image.shape[1]
+        backward_homography = np.linalg.inv(forward_homography)
+        backward_homography = Solution.add_translation_to_backward_homography(backward_homography, dst_left, dst_up)
+        mapped_src = Solution.compute_backward_mapping(backward_homography, src_image, (pano_rows, pano_cols, 3))
+        panorama = np.copy(mapped_src)
+
+        panorama[dst_up:dst_down, dst_left:dst_right, :] = dst_image
+
+        return np.clip(panorama, 0, 255).astype(np.uint8)
