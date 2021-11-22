@@ -385,6 +385,8 @@ class Solution:
             A new homography which includes the backward homography and the
             translation.
         """
+        # forward mapped source coordinates need to be shifted (pad_left, pad_up) after the mapping (matrix
+        # multiplication from the left), so backward mapping gets reverse shift matrix multiplied from the right
         translation_matrix = np.array([[1, 0, -pad_left], [0, 1, -pad_up], [0, 0, 1]])
         final_homography = backward_homography @ translation_matrix
         return final_homography / final_homography[2, 2]
@@ -435,8 +437,8 @@ class Solution:
         backward_homography = np.linalg.inv(forward_homography)
         backward_homography = Solution.add_translation_to_backward_homography(backward_homography, dst_left, dst_up)
         mapped_src = Solution.compute_backward_mapping(backward_homography, src_image, (pano_rows, pano_cols, 3))
-        panorama = np.copy(mapped_src)
-
+        # we override the panorama matrix with destination values, so initializing with mapped source image is easier
+        panorama = mapped_src
         panorama[dst_up:dst_down, dst_left:dst_right, :] = dst_image
 
         return np.clip(panorama, 0, 255).astype(np.uint8)
