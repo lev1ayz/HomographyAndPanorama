@@ -40,7 +40,7 @@ class Solution:
         ))
 
         [_, _, V_t] = np.linalg.svd(A)
-        return V_t[-1].reshape(3, 3)
+        return V_t[-1].reshape(3, 3) / V_t[-1, -1]
 
     @staticmethod
     def create_matching_coordinate_pair_rows(index: int,
