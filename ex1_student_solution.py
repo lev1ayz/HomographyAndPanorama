@@ -5,10 +5,8 @@ from typing import Tuple
 from random import sample
 from collections import namedtuple
 
-
 from numpy.linalg import svd
 from scipy.interpolate import griddata
-
 
 PadStruct = namedtuple('PadStruct',
                        ['pad_up', 'pad_down', 'pad_right', 'pad_left'])
@@ -16,6 +14,7 @@ PadStruct = namedtuple('PadStruct',
 
 class Solution:
     """Implement Projective Homography and Panorama Solution."""
+
     def __init__(self):
         pass
 
@@ -120,11 +119,20 @@ class Solution:
         src_coordinate_matrix = np.array([src_xx, src_yy, np.ones((src_h * src_w))], dtype=np.int32)
         dst_coordinate_matrix = homography @ src_coordinate_matrix
         dst_coordinate_matrix = np.round(dst_coordinate_matrix[:2] / dst_coordinate_matrix[2]).astype(int)
-        dst_coordinate_matrix = dst_coordinate_matrix.clip(min=np.array([0, 0]).reshape(-1, 1),
-                                                           max=np.array((dst_w, dst_h)).reshape(-1, 1) - 1)
+        valid_dst_xx, valid_dst_yy, valid_src_xx, valid_src_yy = \
+            Solution.get_valid_indices(dst_coordinate_matrix, dst_h, dst_w, src_xx, src_yy)
 
-        dst_image[dst_coordinate_matrix[1], dst_coordinate_matrix[0]] = src_image[src_yy, src_xx]
+        dst_image[valid_dst_yy, valid_dst_xx] = src_image[valid_src_yy, valid_src_xx]
         return dst_image
+
+    @staticmethod
+    def get_valid_indices(dst_coordinate_matrix, dst_h, dst_w, src_xx, src_yy):
+        valid_dst_indices = np.flatnonzero((0 <= dst_coordinate_matrix[0]) & (dst_coordinate_matrix[0] < dst_h)
+                                           & (0 <= dst_coordinate_matrix[1]) & (dst_coordinate_matrix[1] < dst_w))
+
+        valid_dst_xx, valid_dst_yy = dst_coordinate_matrix[:, valid_dst_indices]
+        valid_src_xx, valid_src_yy = src_xx[valid_dst_indices], src_yy[valid_dst_indices]
+        return valid_dst_xx, valid_dst_yy, valid_src_xx, valid_src_yy
 
     @staticmethod
     def test_homography(homography: np.ndarray,
