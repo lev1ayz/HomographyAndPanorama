@@ -5,10 +5,8 @@ from typing import Tuple
 from random import sample
 from collections import namedtuple
 
-
 from numpy.linalg import svd
 from scipy.interpolate import griddata
-
 
 PadStruct = namedtuple('PadStruct',
                        ['pad_up', 'pad_down', 'pad_right', 'pad_left'])
@@ -16,6 +14,7 @@ PadStruct = namedtuple('PadStruct',
 
 class Solution:
     """Implement Projective Homography and Panorama Solution."""
+
     def __init__(self):
         pass
 
@@ -33,14 +32,14 @@ class Solution:
         """
         # return homography
         number_of_points = match_p_src.shape[1]
-        src_coordinate_mat = np.concatenate((match_p_src, np.ones((1, number_of_points), dtype=int)), axis=0)
+        src_coordinate_mat = np.concatenate((match_p_src, np.ones((1, number_of_points))), axis=0)
         A = np.vstack((
             [Solution.create_matching_coordinate_pair_rows(index, coordinate_pair, match_p_dst)
              for index, coordinate_pair in enumerate(src_coordinate_mat.T)]
         ))
 
         [_, _, V_t] = np.linalg.svd(A)
-        return V_t[-1].reshape(3, 3)
+        return V_t[-1].reshape(3, 3) / V_t[-1, -1]
 
     @staticmethod
     def create_matching_coordinate_pair_rows(index: int,
@@ -73,17 +72,15 @@ class Solution:
         Returns:
             The forward homography of the source image to its destination.
         """
-
+        h, w = src_image.shape[:2]
         dst_image = np.zeros(dst_image_shape, dtype=np.uint8)
-        for i in range(src_image.shape[0]):
-            for j in range(src_image.shape[1]):
+        for src_y in range(h):
+            for src_x in range(w):
+                dst_coordinates = homography @ np.array([src_x, src_y, 1])
+                dst_x, dst_y = np.round(dst_coordinates[:2] / dst_coordinates[2]).astype(int)
                 # there is a flip in the coordinates, as (row, column) = (y, x)
-                dst_coordinates = np.matmul(homography, np.array([j, i, 1]))
-                # reverse flip back to (row, column)
-                dst_i = np.round(dst_coordinates[1] / dst_coordinates[2]).astype(int)
-                dst_j = np.round(dst_coordinates[0] / dst_coordinates[2]).astype(int)
-                if 0 <= dst_i < dst_image_shape[0] and 0 <= dst_j < dst_image_shape[1]:
-                    dst_image[dst_i][dst_j] = src_image[i][j]
+                if 0 <= dst_y < dst_image_shape[0] and 0 <= dst_x < dst_image_shape[1]:
+                    dst_image[dst_y][dst_x] = src_image[src_y][src_x]
 
         return dst_image
 
@@ -115,18 +112,27 @@ class Solution:
             The forward homography of the source image to its destination.
         """
         dst_image = np.zeros(dst_image_shape, dtype=np.uint8)
-        h, w = src_image.shape[:2]
-        xx, yy = np.meshgrid(range(h), range(w))
-        xx, yy = xx.reshape(1, -1), yy.reshape(1, -1)
-        src_coordinate_matrix = np.array([yy, xx, np.ones((1, h * w))], dtype=np.int32).squeeze()
-        dst_coordinate_matrix = np.matmul(homography, src_coordinate_matrix)
-        dst_coordinate_matrix = dst_coordinate_matrix / dst_coordinate_matrix[2]
-        dst_coordinate_matrix = dst_coordinate_matrix[1::-1, :].round().astype(int)
-        dst_coordinate_matrix = dst_coordinate_matrix.clip(min=np.array([0, 0]).reshape(-1, 1),
-                                                           max=np.array(dst_image_shape[:2]).reshape(-1, 1) - 1)
+        src_h, src_w = src_image.shape[:2]
+        dst_h, dst_w = dst_image_shape[:2]
+        src_yy, src_xx = np.meshgrid(range(src_h), range(src_w))
+        src_yy, src_xx = src_yy.ravel(), src_xx.ravel()
+        src_coordinate_matrix = np.array([src_xx, src_yy, np.ones((src_h * src_w))], dtype=np.int32)
+        dst_coordinate_matrix = homography @ src_coordinate_matrix
+        dst_coordinate_matrix = np.round(dst_coordinate_matrix[:2] / dst_coordinate_matrix[2]).astype(int)
+        valid_dst_xx, valid_dst_yy, valid_src_xx, valid_src_yy = \
+            Solution.get_valid_indices(dst_coordinate_matrix, dst_h, dst_w, src_xx, src_yy)
 
-        dst_image[dst_coordinate_matrix[0, :], dst_coordinate_matrix[1, :]] = src_image[xx, yy]
+        dst_image[valid_dst_yy, valid_dst_xx] = src_image[valid_src_yy, valid_src_xx]
         return dst_image
+
+    @staticmethod
+    def get_valid_indices(dst_coordinate_matrix, dst_h, dst_w, src_xx, src_yy):
+        valid_dst_indices = np.flatnonzero((0 <= dst_coordinate_matrix[0]) & (dst_coordinate_matrix[0] < dst_h)
+                                           & (0 <= dst_coordinate_matrix[1]) & (dst_coordinate_matrix[1] < dst_w))
+
+        valid_dst_xx, valid_dst_yy = dst_coordinate_matrix[:, valid_dst_indices]
+        valid_src_xx, valid_src_yy = src_xx[valid_dst_indices], src_yy[valid_dst_indices]
+        return valid_dst_xx, valid_dst_yy, valid_src_xx, valid_src_yy
 
     @staticmethod
     def test_homography(homography: np.ndarray,
@@ -161,11 +167,13 @@ class Solution:
         return fit_percent, dist_mse
 
     @staticmethod
-    def get_matching_point_distances(homography, match_p_dst, match_p_src):
+    def get_matching_point_distances(homography: np.ndarray,
+                                     match_p_dst: np.ndarray,
+                                     match_p_src: np.ndarray) -> np.ndarray:
         number_of_points = match_p_src.shape[1]
         src_coordinate_mat = np.concatenate((match_p_src, np.ones((1, number_of_points), dtype=int)), axis=0)
-        transformed_coordinate_mat = np.matmul(homography, src_coordinate_mat)
-        transformed_coordinate_mat = transformed_coordinate_mat[0:2] / transformed_coordinate_mat[2]
+        transformed_coordinate_mat = homography @ src_coordinate_mat
+        transformed_coordinate_mat = transformed_coordinate_mat[:2] / transformed_coordinate_mat[2]
         distances = np.linalg.norm(match_p_dst - transformed_coordinate_mat, axis=0)
         return distances
 
@@ -229,9 +237,30 @@ class Solution:
         # n = 4
         # # number of RANSAC iterations (+1 to avoid the case where w=1)
         # k = int(np.ceil(np.log(1 - p) / np.log(1 - w ** n))) + 1
-        # return homography
-        """INSERT YOUR CODE HERE"""
-        pass
+        w = inliers_percent
+        t = max_err
+        p = 0.99
+        d = 0.5
+        n = 4
+        k = int(np.ceil(np.log(1 - p) / np.log(1 - w ** n))) + 1
+
+        best_model, best_mse = np.empty(np.array([3, 3])), np.finfo(float).max
+        for i in range(k):
+            candidate_indices = np.random.permutation(range(match_p_src.shape[1]))[:n]
+            src_candidates, dst_candidates = match_p_src[:, candidate_indices], match_p_dst[:, candidate_indices]
+            candidate_homography = Solution.compute_homography_naive(src_candidates, dst_candidates)
+            fit_percent, dist_mse = Solution.test_homography(candidate_homography, match_p_src, match_p_dst, t)
+
+            if fit_percent > d:
+                src_inliers, dst_inliers = Solution.meet_the_model_points(candidate_homography, match_p_src,
+                                                                          match_p_dst, t)
+
+                candidate_homography = Solution.compute_homography_naive(src_inliers, dst_inliers)
+                fit_percent, dist_mse = Solution.test_homography(candidate_homography, match_p_src, match_p_dst, t)
+                if dist_mse < best_mse:
+                    best_mse, best_model = dist_mse, candidate_homography
+
+        return best_model
 
     @staticmethod
     def compute_backward_mapping(
@@ -258,10 +287,23 @@ class Solution:
         Returns:
             The source image backward warped to the destination coordinates.
         """
+        backward_warp = np.zeros(dst_image_shape, dtype=np.uint8)
 
-        # return backward_warp
-        """INSERT YOUR CODE HERE"""
-        pass
+        dst_h, dst_w = dst_image_shape[:2]
+        src_h, src_w = src_image.shape[:2]
+        dst_yy, dst_xx = np.meshgrid(range(dst_h), range(dst_w))
+        dst_coordinate_matrix = np.array([dst_xx.ravel(), dst_yy.ravel(), np.ones((dst_h * dst_w))], dtype=np.int32)
+        transformed_coordinate_matrix = backward_projective_homography @ dst_coordinate_matrix
+        transformed_coordinate_matrix = transformed_coordinate_matrix[:2] / transformed_coordinate_matrix[2]
+        src_yy, src_xx = np.meshgrid(range(src_h), range(src_w))
+        src_coordinates = np.array([src_xx.ravel(), src_yy.ravel()], dtype=np.int32)
+        for i in range(3):
+            src_channel = src_image[:, :, i].T.ravel()
+            grid = griddata(src_coordinates.T, src_channel, transformed_coordinate_matrix.T,
+                            method='cubic', fill_value=0)
+
+            backward_warp[:, :, i] = grid.reshape((dst_h, dst_w), order='F')
+        return backward_warp
 
     @staticmethod
     def find_panorama_shape(src_image: np.ndarray,
@@ -351,9 +393,11 @@ class Solution:
             A new homography which includes the backward homography and the
             translation.
         """
-        # return final_homography
-        """INSERT YOUR CODE HERE"""
-        pass
+        # forward mapped source coordinates need to be shifted (pad_left, pad_up) after the mapping (matrix
+        # multiplication from the left), so backward mapping gets reverse shift matrix multiplied from the right
+        translation_matrix = np.array([[1, 0, -pad_left], [0, 1, -pad_up], [0, 0, 1]])
+        final_homography = backward_homography @ translation_matrix
+        return final_homography / final_homography[2, 2]
 
     def panorama(self,
                  src_image: np.ndarray,
@@ -394,6 +438,15 @@ class Solution:
             A panorama image.
 
         """
-        # return np.clip(img_panorama, 0, 255).astype(np.uint8)
-        """INSERT YOUR CODE HERE"""
-        pass
+        forward_homography = self.compute_homography(match_p_src, match_p_dst, inliers_percent, max_err)
+        pano_rows, pano_cols, pad_struct = Solution.find_panorama_shape(src_image, dst_image, forward_homography)
+        dst_up, dst_down = pad_struct.pad_up, pad_struct.pad_up + dst_image.shape[0]
+        dst_left, dst_right = pad_struct.pad_left, pad_struct.pad_left + dst_image.shape[1]
+        backward_homography = np.linalg.inv(forward_homography)
+        backward_homography = Solution.add_translation_to_backward_homography(backward_homography, dst_left, dst_up)
+        mapped_src = Solution.compute_backward_mapping(backward_homography, src_image, (pano_rows, pano_cols, 3))
+        # we override the panorama matrix with destination values, so initializing with mapped source image is easier
+        panorama = mapped_src
+        panorama[dst_up:dst_down, dst_left:dst_right, :] = dst_image
+
+        return np.clip(panorama, 0, 255).astype(np.uint8)
