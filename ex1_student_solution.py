@@ -297,12 +297,10 @@ class Solution:
         transformed_coordinate_matrix = transformed_coordinate_matrix[:2] / transformed_coordinate_matrix[2]
         src_yy, src_xx = np.meshgrid(range(src_h), range(src_w))
         src_coordinates = np.array([src_xx.ravel(), src_yy.ravel()], dtype=np.int32)
-        for i in range(3):
-            src_channel = src_image[:, :, i].T.ravel()
-            grid = griddata(src_coordinates.T, src_channel, transformed_coordinate_matrix.T,
-                            method='cubic', fill_value=0)
+        src_values = src_image.T.reshape(3, -1)
+        grid = griddata(src_coordinates.T, src_values.T, transformed_coordinate_matrix.T, method='cubic', fill_value=0)
 
-            backward_warp[:, :, i] = grid.reshape((dst_h, dst_w), order='F')
+        backward_warp = grid.reshape((dst_h, dst_w, 3), order='F')
         return backward_warp
 
     @staticmethod
