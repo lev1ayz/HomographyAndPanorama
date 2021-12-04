@@ -127,8 +127,8 @@ class Solution:
 
     @staticmethod
     def get_valid_indices(dst_coordinate_matrix, dst_h, dst_w, src_xx, src_yy):
-        valid_dst_indices = np.flatnonzero((0 <= dst_coordinate_matrix[0]) & (dst_coordinate_matrix[0] < dst_h)
-                                           & (0 <= dst_coordinate_matrix[1]) & (dst_coordinate_matrix[1] < dst_w))
+        valid_dst_indices = np.flatnonzero((0 <= dst_coordinate_matrix[0]) & (dst_coordinate_matrix[0] < dst_w)
+                                           & (0 <= dst_coordinate_matrix[1]) & (dst_coordinate_matrix[1] < dst_h))
 
         valid_dst_xx, valid_dst_yy = dst_coordinate_matrix[:, valid_dst_indices]
         valid_src_xx, valid_src_yy = src_xx[valid_dst_indices], src_yy[valid_dst_indices]
