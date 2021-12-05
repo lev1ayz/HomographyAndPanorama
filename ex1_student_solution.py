@@ -127,8 +127,8 @@ class Solution:
 
     @staticmethod
     def get_valid_indices(dst_coordinate_matrix, dst_h, dst_w, src_xx, src_yy):
-        valid_dst_indices = np.flatnonzero((0 <= dst_coordinate_matrix[0]) & (dst_coordinate_matrix[0] < dst_h)
-                                           & (0 <= dst_coordinate_matrix[1]) & (dst_coordinate_matrix[1] < dst_w))
+        valid_dst_indices = np.flatnonzero((0 <= dst_coordinate_matrix[0]) & (dst_coordinate_matrix[0] < dst_w)
+                                           & (0 <= dst_coordinate_matrix[1]) & (dst_coordinate_matrix[1] < dst_h))
 
         valid_dst_xx, valid_dst_yy = dst_coordinate_matrix[:, valid_dst_indices]
         valid_src_xx, valid_src_yy = src_xx[valid_dst_indices], src_yy[valid_dst_indices]
@@ -297,12 +297,10 @@ class Solution:
         transformed_coordinate_matrix = transformed_coordinate_matrix[:2] / transformed_coordinate_matrix[2]
         src_yy, src_xx = np.meshgrid(range(src_h), range(src_w))
         src_coordinates = np.array([src_xx.ravel(), src_yy.ravel()], dtype=np.int32)
-        for i in range(3):
-            src_channel = src_image[:, :, i].T.ravel()
-            grid = griddata(src_coordinates.T, src_channel, transformed_coordinate_matrix.T,
-                            method='cubic', fill_value=0)
+        src_values = src_image.T.reshape(3, -1)
+        grid = griddata(src_coordinates.T, src_values.T, transformed_coordinate_matrix.T, method='cubic', fill_value=0)
 
-            backward_warp[:, :, i] = grid.reshape((dst_h, dst_w), order='F')
+        backward_warp = grid.reshape((dst_h, dst_w, 3), order='F')
         return backward_warp
 
     @staticmethod
